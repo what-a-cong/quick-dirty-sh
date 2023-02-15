@@ -16,6 +16,10 @@ class QuickDirtySh(ModuleType):
         os.system(cmd)
         pass
 
+    def exit(self, exit_code=0):
+        sys.exit(exit_code)
+        pass
+
     pass
 
 
