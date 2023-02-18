@@ -2,12 +2,9 @@
 empty:
 	echo "an empty makefile target"
 
-.PHONY: test-install
-test-install:
-	python3 -m pip install nox
-
 .PHONY: test
 test:
+	python3 -m pip install nox
 	python3 -m nox -k "not manual"
 
 .PHONY: lit
