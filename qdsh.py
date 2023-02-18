@@ -5,7 +5,13 @@ import sys
 import tempfile
 from types import ModuleType
 
-logging.basicConfig(level=logging.DEBUG)
+_DEFAULT_DEBUG_OPTION = False
+_DEFAULT_DEBUG_OPTION = True
+
+if _DEFAULT_DEBUG_OPTION:
+    logging.basicConfig(level=logging.DEBUG)
+
+
 _qdsh_filepath = os.path.abspath(__file__)
 
 
@@ -36,7 +42,7 @@ class _Options(dict):
         _OptionName.NoSaveWorkingDir: False,
         _OptionName.NoSaveEnv: False,
         _OptionName.UseBash: False,
-        _OptionName.Debug: False,
+        _OptionName.Debug: _DEFAULT_DEBUG_OPTION,
         _OptionName.Encoding: 'utf-8',
     }
 
@@ -88,39 +94,43 @@ class QuickDirtySh(ModuleType):
         pass
 
     def __call__(self, *args, **kwargs):
-        self.run(*args, **kwargs)
+        return self.run(*args, **kwargs)
         pass
 
     def run(self, cmd, env=None, cwd=None, stdin=None):
-        self._run_env = env if env else self.env
-        self._run_cwd = cwd if cwd else os.getcwd()
-        self._run_stdin = stdin
+        logging.debug('cmd: {}'.format(cmd))
+        self._r_env = env if env else self.env
+        self._r_cwd = cwd if cwd else os.getcwd()
+        self._r_stdin = stdin
 
-        self._run_tmpdir_obj = tempfile.TemporaryDirectory(
+        self._r_tmpdir_obj = tempfile.TemporaryDirectory(
             ignore_cleanup_errors=True)
-        self._run_tmpdir = os.path.abspath(self._run_tmpdir_obj.name)
+        self._r_tmpdir = os.path.abspath(self._r_tmpdir_obj.name)
         if self._debug:
             # Have to create new temp folder, or tempfile will clear the folder
             # before program exits
-            self._run_tmpdir = os.path.abspath(
-                self._run_tmpdir_obj.name + '-debug')
-            os.mkdir(self._run_tmpdir)
+            self._r_tmpdir = os.path.abspath(
+                self._r_tmpdir_obj.name + '-debug')
+            os.mkdir(self._r_tmpdir)
             pass
-        logging.debug('tempdir: {}'.format(self._run_tmpdir))
+        logging.debug('tempdir: {}'.format(self._r_tmpdir))
 
-        self._run_script_file = os.path.join(self._run_tmpdir, 'qdsh.sh')
-        logging.debug('script file: {}'.format(self._run_script_file))
-        self._run_data_file = os.path.join(self._run_tmpdir, 'data.out')
-        logging.debug('data file: {}'.format(self._run_data_file))
+        self._r_script_file = os.path.join(self._r_tmpdir, 'qdsh.sh')
+        logging.debug('script file: {}'.format(self._r_script_file))
+        self._r_data_file = os.path.join(self._r_tmpdir, 'data')
+        logging.debug('data file: {}'.format(self._r_data_file))
+        self._r_data_stdout = os.path.join(self._r_tmpdir, 'data.out')
+        self._r_data_stderr = os.path.join(self._r_tmpdir, 'data.err')
 
         self._generate_script(cmd)
         self._run_script()
         self._get_data_and_update()
 
+        return self.stdout
         pass
 
     def _generate_script(self, cmd):
-        with open(self._run_script_file, 'w+') as f:
+        with open(self._r_script_file, 'w+') as f:
             # pre-run hook
             f.write('# pre-run hooks\n')
 
@@ -131,9 +141,13 @@ class QuickDirtySh(ModuleType):
 
             # data collection
             f.write('# collect post-run data\n')
+            redirect = '>/dev/null 2>&1'
+            if self._debug:
+                redirect = '>{} 2>{}'.format(
+                    self._r_data_stdout, self._r_data_stderr)
             f.write(
-                "python {} {} $? \n".format(
-                    _qdsh_filepath, self._run_data_file)
+                "python {} {} $? {}\n".format(
+                    _qdsh_filepath, self._r_data_file, redirect)
             )
 
             # post-run hooks
@@ -144,9 +158,9 @@ class QuickDirtySh(ModuleType):
 
     def _run_script(self):
         p = subp.Popen(
-            (self._sh_exe, '-e', self._run_script_file),
-            env=self._run_env, cwd=self._run_cwd,
-            stdin=self._run_stdin, stderr=subp.PIPE, stdout=subp.PIPE
+            (self._sh_exe, self._r_script_file),
+            env=self._r_env, cwd=self._r_cwd,
+            stdin=self._r_stdin, stderr=subp.PIPE, stdout=subp.PIPE
         )
         self.stdout, self.stderr = p.communicate()
         self.stdout = self.stdout.decode(self.options[_OptionName.Encoding])
@@ -157,7 +171,7 @@ class QuickDirtySh(ModuleType):
         pass
 
     def _get_data_and_update(self):
-        with open(self._run_data_file, 'r') as f:
+        with open(self._r_data_file, 'r') as f:
             data = eval(f.readline())
         if not self.options[_OptionName.NoSaveWorkingDir]:
             os.chdir(data['cwd'])

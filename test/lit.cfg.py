@@ -6,7 +6,7 @@ config.name = "QDSH Lit test"
 config.test_format = lit.formats.ShTest()
 
 # tested python file which not contains lit directives will use extension name
-# ".py3" to avoid being discovered as test which having editors recognized as
+# ".pyi" to avoid being discovered as test which having editors recognized as
 # python files and have syntax highlighting
 config.suffixes = ['.py', '.sh']
 config.excludes = ['lit.cfg.py', 'assert.sh']
