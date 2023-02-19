@@ -5,6 +5,8 @@ import os
 
 sh('cd /tmp')
 
+print(os.getcwd())
+
 assert os.getcwd() == '/tmp'
 
 sh('cd /etc')
